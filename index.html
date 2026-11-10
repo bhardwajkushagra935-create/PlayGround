@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>The Altar of Fallen Kings</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root{color-scheme:dark;--gold:#e4bd7a;--mist:#a8c9cd}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090e15;color:#f5eee1;font-family:'DM Sans',sans-serif}body{display:grid;place-items:center;background:radial-gradient(ellipse at 50% 30%,#1d2933,#080d14 75%)}#game{position:relative;width:min(100vw,166.67vh);height:min(100vh,60vw);aspect-ratio:5/3;overflow:hidden;background:#111b23;box-shadow:0 20px 100px #000b;border:1px solid #8a79564a}canvas{display:block;width:100%;height:100%;touch-action:none}.brand{position:absolute;left:24px;top:18px;font:600 10px 'DM Sans';letter-spacing:.24em;color:#d4bd91;opacity:.8;text-transform:uppercase;pointer-events:none}.corner{position:absolute;right:24px;top:18px;font-size:10px;letter-spacing:.12em;color:#dae4df9c;pointer-events:none}.overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(90deg,#081017dc,#101b20b8 50%,#081017dc);transition:opacity .4s}.overlay.hidden{opacity:0;pointer-events:none}.card{width:min(640px,86%);text-align:center;padding:35px 38px 30px;background:linear-gradient(145deg,#17242bd9,#0c151bd9);border:1px solid #d2b17855;box-shadow:0 18px 70px #0008;position:relative}.card:before,.card:after{content:'';position:absolute;width:18px;height:18px;border-color:#e4bd7a;border-style:solid}.card:before{left:10px;top:10px;border-width:1px 0 0 1px}.card:after{right:10px;bottom:10px;border-width:0 1px 1px 0}.eyebrow{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:#b9c9c0;margin-bottom:14px}.title{font:600 clamp(28px,5vw,47px)/1.08 'Cinzel',serif;color:#f3e7d2;letter-spacing:.045em;text-shadow:0 3px 20px #c7844860}.subtitle{font:500 12px 'DM Sans';letter-spacing:.2em;color:#d1b785;text-transform:uppercase;margin-top:12px}.description{max-width:470px;margin:20px auto;color:#c3cbc6;font-size:13px;line-height:1.75}.start{border:1px solid #e1bd7c;background:#d6b47a;color:#192026;text-transform:uppercase;letter-spacing:.17em;font:700 11px 'DM Sans';padding:13px 27px;cursor:pointer;transition:.2s}.start:hover{background:#f0d39a;transform:translateY(-2px);box-shadow:0 5px 25px #e4bd7a45}.hint{margin-top:15px;color:#8f9c9d;font-size:10px;letter-spacing:.06em}.touch{display:none;position:absolute;inset:auto 15px 14px;justify-content:space-between;align-items:end;pointer-events:none}.touchgroup{display:flex;gap:8px;pointer-events:auto}.touch button{width:53px;height:53px;border:1px solid #d9c18a7a;background:#13212baa;color:#f2e5ca;font-size:19px;border-radius:50%;touch-action:none}.touch .wide{width:62px;border-radius:18px;font-size:10px;font-weight:700;letter-spacing:.08em}@media(max-width:760px),(pointer:coarse){.touch{display:flex}.brand{left:12px;top:10px;font-size:8px}.corner{right:12px;top:10px;font-size:8px}.card{padding:27px 22px}.description{font-size:12px}.hint{margin-top:10px}}
+</style>
+</head>
+<body><main id="game"><canvas id="c" width="1000" height="600" aria-label="The Altar of Fallen Kings game"></canvas><div class="brand">✦ &nbsp; A stormbound legend &nbsp; ✦</div><div class="corner">LEVEL X &nbsp; / &nbsp; SONG MOUNTAINS</div><div class="overlay" id="overlay"><section class="card"><div class="eyebrow">A 2.5D side-scrolling adventure</div><div class="title" id="overlayTitle">THE ALTAR<br>OF FALLEN KINGS</div><div class="subtitle" id="overlaySub">Level 10 · The storm summit</div><p class="description" id="overlayText">The old shrine is breaking beneath the storm. Ring the wind-chimes in their proper order, claim the oracle key, unseal the dragon altar—and face the sovereign who never left.</p><button class="start" id="start">Begin the ascent</button><div class="hint" id="overlayHint">A / D move &nbsp; · &nbsp; W or SPACE jump &nbsp; · &nbsp; J strike &nbsp; · &nbsp; E interact &nbsp; · &nbsp; SHIFT wind dash</div></section></div><div class="touch"><div class="touchgroup"><button data-key="a">◀</button><button data-key="d">▶</button></div><div class="touchgroup"><button class="wide" data-key="e">ACT</button><button data-key="j">⚔</button><button class="wide" data-key="shift">DASH</button><button data-key=" ">↑</button></div></div></main>
+<script>
+(() => {
+const canvas=document.querySelector('#c'),ctx=canvas.getContext('2d'),overlay=document.querySelector('#overlay');
+const W=1000,H=600,G=0.56;let running=false,last=0,cam=0,shake=0,flash=0,wind=0,windTimer=0,particles=[],rain=[],keys={},message='',messageT=0;
+const worldW=2130, floorY=500;
+const platforms=[{x:0,y:500,w:390},{x:430,y:450,w:150},{x:610,y:405,w:150},{x:780,y:460,w:170},{x:990,y:500,w:230},{x:1240,y:450,w:130},{x:1400,y:410,w:130},{x:1570,y:500,w:560},{x:1140,y:375,w:100},{x:175,y:410,w:100},{x:300,y:355,w:100}];
+let player,enemies,chimes,pillars,boss,progress,checkpoint;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function reset(){player={x:70,y:450,vx:0,vy:0,w:28,h:50,hp:5,max:5,face:1,on:false,attack:0,dash:0,inv:0,air:0};enemies=[{x:270,y:468,hp:2,type:'archer',alive:true},{x:370,y:468,hp:2,type:'spear',alive:true},{x:735,y:428,hp:2,type:'archer',alive:true},{x:855,y:438,hp:2,type:'spear',alive:true},{x:1055,y:468,hp:2,type:'ghost',alive:true},{x:1170,y:468,hp:2,type:'ghost',alive:true},{x:1320,y:418,hp:5,type:'sentinel',alive:true}];chimes=[{x:450,n:1,wind:'NORTH',hit:false},{x:635,n:2,wind:'WEST',hit:false},{x:820,n:3,wind:'SOUTH',hit:false}];pillars=[{x:1290,angle:0},{x:1450,angle:0}];boss={x:1900,y:500,hp:8,max:8,alive:true,phase:0,attack:0};progress={started:false,chime:0,key:false,a:false,b:false,seal:false,boss:false};cam=0;message='';messageT=0;particles=[];checkpoint=70}
+reset();
+function say(s,t=2.8){message=s;messageT=t}
+function start(){if(progress.boss){reset();document.querySelector('#overlayTitle').innerHTML='THE ALTAR<br>OF FALLEN KINGS';document.querySelector('#overlaySub').textContent='Level 10 · The storm summit';document.querySelector('#overlayText').textContent='The old shrine is breaking beneath the storm. Ring the wind-chimes in their proper order, claim the oracle key, unseal the dragon altar—and face the sovereign who never left.';document.querySelector('#start').textContent='Begin the ascent';document.querySelector('#overlayHint').textContent='A / D move · W or SPACE jump · J strike · E interact · SHIFT wind dash'}running=true;overlay.classList.add('hidden');say('The wind is restless. Follow the banners.',4)}
+document.querySelector('#start').onclick=start;
+document.addEventListener('keydown',e=>{let k=e.key.toLowerCase();keys[k]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(k==='enter'&&!running)start();if(k==='r'&&running){reset();say('The storm returns you to the gate.')}});
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+document.querySelectorAll('.touch button').forEach(b=>{const key=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true;b.setPointerCapture(e.pointerId)});for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,()=>keys[key]=false)});
+function down(...ks){return ks.some(k=>keys[k])}
+function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
+function line(x1,y1,x2,y2,color,width=1){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke()}
+function circle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function text(s,x,y,size,color,align='left',font='DM Sans'){ctx.fillStyle=color;ctx.font=`${size}px '${font}'`;ctx.textAlign=align;ctx.fillText(s,x,y)}
+function rng(n){return Math.sin(n*127.1+311.7)*43758.5453%1}
+function addP(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.8)*5,life:.45+Math.random()*.6,color,r:1+Math.random()*3})}
+function drawSky(t){let grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,'#182a36');grad.addColorStop(.52,'#34434a');grad.addColorStop(1,'#182229');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+// distant mountain silhouettes
+for(let layer=0;layer<3;layer++){let par=.12+layer*.13,base=370+layer*39;ctx.beginPath();ctx.moveTo(0,H);for(let x=0;x<=W+60;x+=60){let wx=x+cam*par;let yy=base-75*Math.sin(wx*.008+layer*1.7)-30*Math.sin(wx*.023+layer);ctx.lineTo(x,yy)}ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle=['#243943','#20323a','#192a31'][layer];ctx.fill()}
+// pagoda silhouette
+ctx.save();ctx.globalAlpha=.52;ctx.translate(690-cam*.16,190);rect(-10,36,190,154,'#101e24');for(let i=0;i<4;i++){let y=i*34;ctx.beginPath();ctx.moveTo(-40-i*7,y+37);ctx.lineTo(83,y+10);ctx.lineTo(220+i*8,y+37);ctx.lineTo(196+i*6,y+34);ctx.lineTo(84,y+24);ctx.lineTo(-14-i*5,y+43);ctx.closePath();ctx.fillStyle='#0c191f';ctx.fill()}ctx.restore();
+// moon haze
+let glow=ctx.createRadialGradient(785,120,4,785,120,165);glow.addColorStop(0,'#c7d7d088');glow.addColorStop(1,'#c7d7d000');ctx.fillStyle=glow;ctx.fillRect(600,0,370,300);
+// bamboo/trees
+for(let i=0;i<25;i++){let x=((i*137-cam*.32)%(W+180)+W+180)%(W+180)-30;let h=90+(i*47%95);rect(x,400-h,3,h,'#142d2d');for(let j=0;j<5;j++){let y=400-h+j*21;line(x,y,x-13,y-12,'#26504a',2);line(x+2,y+7,x+17,y-5,'#2c594e',2)}}
+}
+function drawWorld(t){drawSky(t);
+// lightning flash + branching bolt
+if(flash>0){rect(0,0,W,H,`rgba(205,225,222,${flash*.18})`);ctx.save();ctx.translate(-cam*.12,0);let x=795;line(x,0,x-28,72,'#eaf6ed',3);line(x-28,72,x+4,116,'#eaf6ed',2);line(x+4,116,x-34,174,'#eaf6ed',3);line(x-34,174,x-3,215,'#d7e9e3',2);ctx.restore()}
+ctx.save();ctx.translate(-cam,0);
+// ground and platforms
+for(const p of platforms){rect(p.x,p.y,p.w,600-p.y,'#28353a');rect(p.x,p.y,p.w,7,'#827b65');rect(p.x,p.y+7,p.w,3,'#484f4c');for(let x=p.x+12;x<p.x+p.w;x+=29){line(x,p.y+15,x+5,p.y+28,'#39454a',1)}}
+// bamboo scaffolding & shrine details
+for(let x=80;x<980;x+=205){line(x,498,x,300,'#544936',6);line(x+50,498,x+50,330,'#65563b',5);line(x-12,400,x+62,400,'#82704c',5);line(x-12,400,x+53,340,'#65583e',3);line(x+50,400,x-3,344,'#65583e',3);}
+// cavern pillars
+for(let x=1010;x<1240;x+=65){rect(x,282,13,218,'#4b5651');rect(x-9,278,31,9,'#817b63');line(x+6,310,x+6,490,'#68716a',2)}
+// hanging lanterns and banner clues
+for(let [x,label,col] of [[450,'N','#d9936c'],[635,'W','#86b9c0'],[820,'S','#d6bd78']]){line(x,70,x,103,'#b8a678',2);ctx.fillStyle='#a94234';ctx.beginPath();ctx.moveTo(x-15,102);ctx.lineTo(x+15,102);ctx.lineTo(x+10,156);ctx.lineTo(x,148);ctx.lineTo(x-10,156);ctx.closePath();ctx.fill();text(label,x,137,19,'#f2dfb6','center','Cinzel')}
+// chimes
+for(let c of chimes){let y=170+Math.sin(t*2+c.x)*4;line(c.x,y-20,c.x,y,'#b6a777',2);ctx.fillStyle=c.hit?'#d8bd72':'#66736f';ctx.beginPath();ctx.ellipse(c.x,y+17,19,29,0,Math.PI,Math.PI*2);ctx.lineTo(c.x+15,y+22);ctx.lineTo(c.x-15,y+22);ctx.closePath();ctx.fill();line(c.x,y+17,c.x,y+45,'#ad9870',3);circle(c.x,y+47,3,'#d7bb78');if(c.hit){circle(c.x,y+6,28,'#f4d18c26')} }
+// altar glow / pillars
+for(let i=0;i<pillars.length;i++){let p=pillars[i];rect(p.x-22,438,44,12,'#817a61');rect(p.x-15,380,30,58,'#687169');ctx.save();ctx.translate(p.x,376);ctx.rotate(p.angle);ctx.fillStyle='#bba574';ctx.beginPath();ctx.moveTo(-21,0);ctx.lineTo(0,-24);ctx.lineTo(22,0);ctx.lineTo(0,18);ctx.closePath();ctx.fill();ctx.restore();text(i?'B':'A',p.x,466,11,'#e3cf9f','center','Cinzel')}
+if(progress.seal){let a=ctx.createRadialGradient(1370,340,2,1370,340,60);a.addColorStop(0,'#f4d994aa');a.addColorStop(1,'#f4d99400');ctx.fillStyle=a;ctx.fillRect(1300,270,140,140);circle(1370,340,15,'#edcf83');circle(1370,340,8,'#fff1c8')}
+// zone labels
+text('THE RUINED PAGODA PASS',72,242,11,'#c5b88f','left','Cinzel');text('SUBTERRANEAN SHRINE',1005,252,11,'#bdc9bc','left','Cinzel');text('DRAGON SUMMIT',1604,244,11,'#ddc796','left','Cinzel');
+// boss altar sword
+rect(1860,492,110,8,'#a3987a');line(1914,476,1914,435,'#8fa2a1',4);line(1903,448,1925,448,'#c3a86f',3);circle(1914,432,4,'#e8d18c');
+// enemies
+for(let e of enemies)if(e.alive){drawEnemy(e,t)}
+if(boss.alive&&progress.seal){drawBoss(t)}
+// player
+ drawPlayer();ctx.restore();
+// storm rain foreground
+for(let i=0;i<110;i++){let x=(i*97+t*520*(.65+(i%3)*.2))%W,y=(i*71+t*690)%H;line(x,y,x-7,y+19,'#b9d1d23a',1)}
+}
+function drawEnemy(e,t){let bob=Math.sin(t*4+e.x)*2;ctx.save();ctx.translate(e.x,e.y+bob);if(e.type==='archer'){rect(-8,-27,16,27,'#784a42');circle(0,-34,8,'#d2b796');line(4,-17,18,-28,'#bc9c66',2);line(15,-31,15,-9,'#bdc3b4',1)}else if(e.type==='spear'){rect(-11,-31,22,31,'#53605e');circle(0,-39,8,'#b8a78d');rect(-14,-16,28,5,'#9b7952');line(12,-23,27,-54,'#b9b8a3',3);rect(-17,-34,8,19,'#96784f')}else if(e.type==='ghost'){ctx.globalAlpha=.78;circle(0,-25,14,'#536d72');rect(-12,-27,24,28,'#52676b');circle(-5,-28,2,'#d5d6bd');circle(5,-28,2,'#d5d6bd');ctx.globalAlpha=1}else{rect(-17,-40,34,40,'#555d59');rect(-20,-32,40,9,'#837558');circle(0,-47,11,'#a6967e');rect(-23,-18,8,19,'#707971');line(17,-32,29,-67,'#bdb89e',5)}if(e.hp>0){rect(-14,-58,28,3,'#212b2b');rect(-14,-58,28*(e.hp/(e.type==='sentinel'?5:2)),3,'#cf8575')}ctx.restore()}
+function drawBoss(t){let b=boss;ctx.save();ctx.translate(b.x,b.y+Math.sin(t*2)*4);ctx.globalAlpha=.82;ctx.fillStyle='#1b2529';ctx.beginPath();ctx.moveTo(-31,0);ctx.lineTo(-26,-55);ctx.lineTo(-14,-74);ctx.lineTo(-4,-48);ctx.lineTo(8,-82);ctx.lineTo(20,-53);ctx.lineTo(30,-29);ctx.lineTo(24,0);ctx.closePath();ctx.fill();ctx.globalAlpha=1;circle(0,-44,17,'#364448');circle(-6,-46,2,'#edcf88');circle(7,-46,2,'#edcf88');rect(-30,-8,60,8,'#a0a698');line(-5,-27,-34,-48,'#c4b38a',3);if(b.hp<b.max) {rect(-34,-92,68,4,'#212b2c');rect(-34,-92,68*b.hp/b.max,4,'#dc9c7d')}ctx.restore()}
+function drawPlayer(){let p=player;ctx.save();ctx.translate(p.x,p.y);if(p.inv>0&&Math.floor(p.inv*14)%2)ctx.globalAlpha=.38;let f=p.face; // legs and robe
+rect(-9,-25,7,25,'#253238');rect(3,-25,7,25,'#253238');ctx.fillStyle='#a74738';ctx.beginPath();ctx.moveTo(-13,-39);ctx.lineTo(12,-39);ctx.lineTo(17,-7);ctx.lineTo(-17,-7);ctx.closePath();ctx.fill();rect(-11,-43,22,6,'#d1b47d');circle(0,-49,10,'#d6b99b');rect(-11,-54,22,5,'#302b27');rect(-7,-59,17,5,'#a33f33'); // hair / headband
+line(f*9,-34,f*18,-23,'#d2bd8c',4);line(f*12,-50,f*17,-31,'#e1d3b1',2);
+if(p.attack>0){ctx.strokeStyle=`rgba(235,211,157,${p.attack*1.5})`;ctx.lineWidth=3;ctx.beginPath();ctx.arc(f*13,-31,27,-1.2,1.2);ctx.stroke();line(f*10,-34,f*40,-44,'#e9dfc4',3)}
+if(p.dash>0){circle(0,-24,24,'#9ed0d055')};ctx.restore()}
+function onGround(){return player.on}
+function nearestEnemy(){let best=null,d=70;for(const e of enemies)if(e.alive){let n=Math.abs(e.x-player.x);if(n<d&&Math.abs((e.y-20)-(player.y-24))<65){best=e;d=n}}if(boss.alive&&progress.seal){let n=Math.abs(boss.x-player.x);if(n<d){best=boss;d=n}}return best}
+function strike(){if(!running||player.attack>0)return;player.attack=.24;let target=nearestEnemy();if(target&&((target.x-player.x)*player.face>-8)){target.hp--;if(target.hp<=0){target.alive=false;addP(target.x,target.y-20,target===boss?'#e6bf78':'#83a9a2',20);if(target.type==='sentinel'){progress.key=true;say('The Sentinel falls. Wind Oracle Key acquired.',4)}if(target===boss){progress.boss=true;running=false;overlay.classList.remove('hidden');document.querySelector('#overlayTitle').innerHTML='THE STORM<br>HAS PASSED';document.querySelector('#overlaySub').textContent='The sovereign is finally at rest';document.querySelector('#overlayText').textContent='The altar’s light settles over the mountain. The fallen kings are remembered, and the wind-chimes ring once more.';document.querySelector('#start').textContent='Play again';document.querySelector('#overlayHint').textContent='Press Enter or click to return to the bamboo gate.'}}else addP(target.x,target.y-25,'#d4ad77',5)}
+for(const c of chimes){if(!c.hit&&Math.abs(c.x-player.x)<56&&Math.abs(190-player.y)<300){const order=[2,1,3][progress.chime];if(c.n===order){c.hit=true;progress.chime++;addP(c.x,190,'#e5c27e',18);say(`Wind chime ${progress.chime} of 3 resonates.`,2.5);if(progress.chime===3)say('The three chimes answer. The shrine gate opens.',4)}else{progress.chime=0;chimes.forEach(q=>q.hit=false);player.hp=Math.max(1,player.hp-1);shake=12;addP(c.x,190,'#25353c',25);say('Wrong order! The ink-wind scatters the sequence.',3)}}}}
+function interact(){if(!running)return;for(const p of pillars){if(Math.abs(p.x-player.x)<58&&Math.abs(430-player.y)<95){if(p.x<1400){if(!progress.key){say('The dragon pillar is sealed. Find the Iron-Clad Sentinel.',3);return}p.angle+=Math.PI/2;progress.a=true;addP(p.x,376,'#b7d6cf',18);say('Pillar A turned. The ravine wind is channeled.',3)}else if(progress.key&&progress.a){if(player.dashUsed){progress.b=true;progress.seal=true;addP(p.x,376,'#e7cb83',25);say('Wind locked! The Dragon Altar seal is open.',4)}else say('Dash through the mirror pillar while the current is flowing.',3)}else say('The second mirror waits for the first pillar.',2)} }
+if(player.x>1570&&!progress.seal)say('The summit gate is sealed. Complete the altar mirrors.',2)}
+function damage(){if(player.inv>0)return;player.hp--;player.inv=1.05;shake=9;addP(player.x,player.y-22,'#bb6658',10);if(player.hp<=0){player.hp=5;player.x=checkpoint;player.y=420;player.vy=0;progress.chime=0;chimes.forEach(c=>c.hit=false);say('The storm takes you—but the gate remembers.',3)}}
+const pressed=new Set();let was={};function update(dt,t){if(!running)return;
+if(messageT>0)messageT-=dt;player.inv=Math.max(0,player.inv-dt);player.attack=Math.max(0,player.attack-dt);player.dash=Math.max(0,player.dash-dt);player.dashUsed=player.dash>0;
+windTimer-=dt;if(windTimer<=0){windTimer=2.2+Math.random()*1.8;wind=(Math.random()>.35?1:-1)*(1+Math.random()*1.8)}
+let moving=(down('d','arrowright')?1:0)-(down('a','arrowleft')?1:0);if(moving){player.face=moving;player.vx=moving*(player.dash>0?9:3.4)}else player.vx*=.78;
+if(down('shift')&&player.dash<=0&&!keys._shift){player.dash=.19;player.vx=player.face*11;player.vy=0;player.dashUsed=true;addP(player.x,player.y-20,'#a8d1cf',10)}
+if((down('w',' ','arrowup'))&&!player.jumpLock&&player.on){player.vy=-11.2;player.on=false;player.air=0;player.jumpLock=true}if(!down('w',' ','arrowup'))player.jumpLock=false;
+player.vx+=wind*.08;if(player.dash>0)player.vx=player.face*10;player.x=clamp(player.x+player.vx,15,worldW-20);player.y+=player.vy;player.vy+=G;player.on=false;
+for(const p of platforms){if(player.vy>=0&&player.x+12>p.x&&player.x-12<p.x+p.w&&player.y>=p.y&&player.y-player.vy<=p.y){player.y=p.y;player.vy=0;player.on=true}}
+if(player.y>680){player.x=checkpoint;player.y=400;player.vy=0;damage()}
+for(const k of ['j','e'])if(down(k)&&!was[k])pressed.add(k);was.j=down('j');was.e=down('e');if(pressed.has('j'))strike();if(pressed.has('e'))interact();
+for(const e of enemies)if(e.alive){if(e.type==='ghost'){e.x+=Math.sign(player.x-e.x)*.45;if(Math.abs(player.x-e.x)<38)damage()}else if(e.type==='spear'&&Math.abs(player.x-e.x)<220)e.x+=Math.sign(player.x-e.x)*.34;else if(e.type==='sentinel'&&Math.abs(player.x-e.x)<200)e.x+=Math.sign(player.x-e.x)*.42;
+if(Math.abs(player.x-e.x)<28&&Math.abs(player.y-e.y)<65)damage();if(e.type==='archer'&&Math.abs(player.x-e.x)<280&&Math.random()<.006){addP(e.x,e.y-25,'#d99b76',3);if(Math.abs(player.x-e.x)<130)damage()}}
+if(boss.alive&&progress.seal){if(Math.abs(player.x-boss.x)<48&&Math.abs(player.y-boss.y)<80)damage();if(Math.random()<.012){addP(boss.x-40,boss.y-42,'#789b9b',7);if(Math.abs(player.x-boss.x)<155)damage()}}
+if(player.x>950)checkpoint=990;if(player.x>1570&&progress.seal)checkpoint=1600;
+cam=clamp(player.x-W*.38,0,worldW-W);if(shake>0)shake=Math.max(0,shake-dt*28);flash=Math.max(0,flash-dt*1.6);if(Math.random()<.005)flash=.7;
+for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.12;p.life-=dt;if(p.life<=0)particles.splice(i,1)}pressed.clear()}
+function drawUI(){// dark HUD panel
+ctx.fillStyle='#0b1318c9';ctx.fillRect(22,52,232,73);ctx.strokeStyle='#c8ad7955';ctx.strokeRect(22.5,52.5,231,72);text('VITALITY',39,72,9,'#c7c7b9');for(let i=0;i<player.max;i++){ctx.beginPath();ctx.moveTo(41+i*24,84);ctx.lineTo(48+i*24,91);ctx.lineTo(41+i*24,100);ctx.lineTo(34+i*24,91);ctx.closePath();ctx.fillStyle=i<player.hp?'#d87967':'#465052';ctx.fill()}text('WIND CHIMES',39,115,9,'#c7c7b9');for(let i=0;i<3;i++){circle(137+i*20,111,5,i<progress.chime?'#e7c982':'#586666')}
+ctx.textAlign='right';text(progress.key?'ORACLE KEY  ◆':'ORACLE KEY  —',970,70,10,progress.key?'#e7c982':'#b0bcb5','right');text(progress.seal?'ALTAR SEAL  OPEN':'ALTAR SEAL  '+(progress.a?'1 / 2':'LOCKED'),970,90,10,progress.seal?'#e7c982':'#b0bcb5','right');
+// wind indicator
+ctx.textAlign='left';text('WIND',40,153,9,'#d7c7a2');line(80,149,118,149,'#738e8c',1);text(wind>0?'➤':'◀',wind>0?112:81,153,13,'#c5d2c8');
+if(player.x<950&&!progress.chime) {ctx.fillStyle='#101a1edb';ctx.fillRect(338,68,324,52);text('RING THE WIND-CHIMES',500,88,11,'#ebd4a0','center','Cinzel');text('Strike in banner order: 2 → 1 → 3',500,106,11,'#bdc9c1','center')}
+else if(!progress.key&&player.x>990&&player.x<1580){ctx.fillStyle='#101a1edb';ctx.fillRect(368,68,264,46);text('FIND THE IRON-CLAD SENTINEL',500,89,10,'#e5d3ab','center','Cinzel');text('Strike with J · evade with SPACE',500,105,10,'#bdc9c1','center')}
+if(messageT>0){ctx.fillStyle='#101a1edb';ctx.fillRect(275,518,450,42);text(message,500,544,12,'#f0dfb8','center')}
+if(!running&&progress.boss){rect(0,0,W,H,'#0b111488')}
+}
+function frame(now){let dt=Math.min(.034,(now-last)/1000||.016);last=now;let t=now/1000;update(dt,t);ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);drawWorld(t);ctx.restore();drawUI();requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+})();
+</script></body></html>
